@@ -5,8 +5,8 @@
 PROGRAM_NAME = gol.exe
 CC = gcc
 LINK = gcc
-CFLAGS = -c -Os -std=c99 -Wall
-LINK_FLAGS = -Xlinker -Map=output.map -o $(PROGRAM_NAME)
+CFLAGS = -c -Os -std=c99 -Wall -DNDEBUG
+LINK_FLAGS = -o $(PROGRAM_NAME)
 
 OBJS = \
 	arguments.o \
@@ -22,6 +22,7 @@ gol: $(OBJS)
 	$(CC) $(CFLAGS) $<
 
 debug: CFLAGS += -g
+debug: CFLAGS := $(filter-out -DNDEBUG,$(CFLAGS))
 debug: gol
 
 

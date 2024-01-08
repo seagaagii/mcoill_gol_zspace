@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <assert.h>
 
 //
 // ****************** Internal to this file
@@ -17,18 +18,19 @@
 
 // Constant ROW and COL lengths
 //
-#define ROWS 8
-#define COLS 8
+#define GRID_ROWS 8
+#define GRID_COLS 8
 
-// Living and dead-cell representations
-// -- This are the expected file symbols
+// Alive and dead cell values
+// -- Internally, not for display
 //
-static const uint8_t DEAD_CELL = '.';
-static const uint8_t LIVING_CELL = 'X';
+#define GRID_DEAD_CELL 0
+#define GRID_LIVE_CELL 1
+
 
 // Underlying Grid type
 //
-typedef uint8_t GolGridType[ROWS][COLS];
+typedef uint8_t GolGridType[GRID_ROWS][GRID_COLS];
 
 // Two grids, one will always be valid.
 // The pointers below will change to indicate which is which
@@ -56,21 +58,22 @@ static uint8_t Get(int row, int column)
 //
 static bool IsCellAlive(int row, int column)
 {
-    return ((*ValidGrid)[row][column] == LIVING_CELL);
+    return ((*ValidGrid)[row][column] == GRID_LIVE_CELL);
 }
+
 
 // SetAlive: Set an indvidual cell to alive
 //
 static void SetAlive(int row, int column)
 {
-    (*WorkGrid)[row][column] = LIVING_CELL;
+    (*WorkGrid)[row][column] = GRID_LIVE_CELL;
 }
 
 // SetDead: Set an indvidual cell to dead
 //
 static void SetDead(int row, int column)
 {
-    (*WorkGrid)[row][column] = DEAD_CELL;
+    (*WorkGrid)[row][column] = GRID_DEAD_CELL;
 }
 
 // SwapGrids
@@ -95,9 +98,14 @@ static void AdvanceRowToNextGeneration(
 {
     // Cursors for walking the columns (cells) in a row
     //
-    int previousColumn = (COLS - 1);        // Grid wraps left and right
+    int previousColumn = (GRID_COLS - 1);        // Grid wraps left and right
     int currentColumn = 0;
     int nextColumn = 1;
+
+    // The logic relies on these values being zero and 1.
+    //
+    assert(GRID_DEAD_CELL == 0);
+    assert(GRID_LIVE_CELL == 1);
 
     do
     {
@@ -107,44 +115,20 @@ static void AdvanceRowToNextGeneration(
 
         // Ceck three cell neighbors 'below'
         //
-        if (IsCellAlive(previousRow, previousColumn))
-        {
-            ++neighborCount;
-        }
-        if (IsCellAlive(previousRow, currentColumn))
-        {
-            ++neighborCount;
-        }
-        if (IsCellAlive(previousRow, nextColumn))
-        {
-            ++neighborCount;
-        }
+        neighborCount += Get(previousRow, previousColumn);
+        neighborCount += Get(previousRow, currentColumn);
+        neighborCount += Get(previousRow, nextColumn);
 
         // Check left and right neighbors in same row
         //
-        if (IsCellAlive(currentRow, previousColumn))
-        {
-            ++neighborCount;
-        }
-        if (IsCellAlive(currentRow, nextColumn))
-        {
-            ++neighborCount;
-        }
+        neighborCount += Get(currentRow, previousColumn);
+        neighborCount += Get(currentRow, nextColumn);
 
         // Ceck three cell neighbors 'above'
         //
-        if (IsCellAlive(nextRow, previousColumn))
-        {
-            ++neighborCount;
-        }
-        if (IsCellAlive(nextRow, currentColumn))
-        {
-            ++neighborCount;
-        }
-        if (IsCellAlive(nextRow, nextColumn))
-        {
-            ++neighborCount;
-        }
+        neighborCount += Get(nextRow, previousColumn);
+        neighborCount += Get(nextRow, currentColumn);
+        neighborCount += Get(nextRow, nextColumn);
 
         // Apply GOL rules to determine new state based on neighbor count and current state
         //
@@ -160,7 +144,7 @@ static void AdvanceRowToNextGeneration(
             // Most other states are dead
             //
             SetDead(currentRow, currentColumn);
-            if (Get(currentRow, currentColumn) == LIVING_CELL)
+            if (Get(currentRow, currentColumn) == 1)
             {
                 // Not three neighbors, but currently alive.
                 // Only stays alive if two neighbors
@@ -178,9 +162,9 @@ static void AdvanceRowToNextGeneration(
         //
         previousColumn = currentColumn;
         ++currentColumn;
-        nextColumn = (currentColumn + 1) % COLS;
+        nextColumn = (currentColumn + 1) % GRID_COLS;
 
-    } while (currentColumn < COLS);
+    } while (currentColumn < GRID_COLS);
 }
 
 
@@ -194,7 +178,11 @@ static void AdvanceRowToNextGeneration(
 //  Must use the correct symbols and each line must end with a newline
 //  and be the correct length.
 //
-int32_t Grid_InitializeFromFile(const char* patternFileName)
+int32_t Grid_InitializeFromFile(
+    const char* patternFileName,
+    char deadCell,  // Char in file to indicate a dead cell
+    char liveCell   // Char in file to indicate a live cell
+)
 {
     int32_t result = NO_ERROR;
     FILE* patternFile = fopen(patternFileName, "r");
@@ -209,9 +197,9 @@ int32_t Grid_InitializeFromFile(const char* patternFileName)
     // For each row, read all chars, then read off new-line char.
     //
     fseek(patternFile, SEEK_SET, 0);
-    for (int row = 0; row < ROWS; ++row)
+    for (int row = 0; row < GRID_ROWS; ++row)
     {
-        for (int col = 0; col < COLS; ++col)
+        for (int col = 0; col < GRID_COLS; ++col)
         {
             int nextCell = fgetc(patternFile);
             if (nextCell == EOF)
@@ -220,11 +208,11 @@ int32_t Grid_InitializeFromFile(const char* patternFileName)
                 result = ERROR_INVALID_FILE_FORMAT;
                 goto EXIT;
             }
-            if ((uint8_t)nextCell == DEAD_CELL)
+            if ((uint8_t)nextCell == deadCell)
             {
                 SetDead(row, col);
             }
-            else if ((uint8_t)nextCell == LIVING_CELL)
+            else if ((uint8_t)nextCell == liveCell)
             {
                 SetAlive(row, col);
             }
@@ -255,19 +243,19 @@ void Grid_InitializeAsRandom()
 {
     // Enough items to possible seed every cell
     //
-    int numberTries = rand() % (ROWS * COLS);
+    int numberTries = rand() % (GRID_ROWS * GRID_COLS);
 
     // Initialize all the work-grid cells to DEAD
     //
-    memset((void*)(*WorkGrid), DEAD_CELL, ROWS * COLS);
+    memset((void*)(*WorkGrid), GRID_DEAD_CELL, GRID_ROWS * GRID_COLS);
 
     // Set a random number of cells to alive.
     // It does not matter if the same cell is set ALIVE twice.
     //
     while (numberTries-- > 0)
     {
-        int randCol = rand() % COLS;
-        int randRow = rand() % ROWS;
+        int randCol = rand() % GRID_COLS;
+        int randRow = rand() % GRID_ROWS;
         SetAlive(randCol, randRow);
     }
 
@@ -280,11 +268,14 @@ void Grid_InitializeAsRandom()
 //
 void Grid_AdvanceToNextGeneration()
 {
-    int previousRow = (ROWS-1);    // Grid wraps top to bottom
+    int previousRow = (GRID_ROWS - 1);    // Grid wraps top to bottom
     int currentRow = 0;
     int nextRow = 1;
 
-    // CASSERT(GridGenerations >= 1); -- Must have a previous generation
+    // Treating non-initialization as a logic error.
+    // Initialization reports any failures.
+    //
+    assert(GridGenerations >= 1);
     do
     {
         AdvanceRowToNextGeneration(previousRow, currentRow, nextRow);
@@ -293,8 +284,8 @@ void Grid_AdvanceToNextGeneration()
         //
         previousRow = currentRow;
         ++currentRow;
-        nextRow = (currentRow + 1) % ROWS;
-    } while (currentRow < ROWS);
+        nextRow = (currentRow + 1) % GRID_ROWS;
+    } while (currentRow < GRID_ROWS);
 
     // Commit the next generation
     //
@@ -305,20 +296,22 @@ void Grid_AdvanceToNextGeneration()
 // Grid_Write : Write grid to sent stream
 //
 void Grid_Write(
-    FILE* stream
+    FILE* stream,   // Target stream
+    char deadCell,  // This character is used for a dead-ell
+    char liveCell   // This character is used for a live-cell
     )
 {
-    for (int row = 0; row < ROWS; ++row)
+    for (int row = 0; row < GRID_ROWS; ++row)
     {
-        for (int column = 0; column < COLS; ++column)
+        for (int column = 0; column < GRID_COLS; ++column)
         {
-            fprintf(stream, "%c", Get(row, column));
+            fprintf(stream, "%c", IsCellAlive(row, column) ? liveCell : deadCell);
         }
         fprintf(stream, "\n");
     }
 }
 
-// Grid_Write : returns the number of generations the grid has been run
+// Grid_GetGenerationCount : returns the number of generations the grid has been run
 //
 uint32_t Grid_GetGenerationCount()
 {
