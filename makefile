@@ -5,8 +5,8 @@
 PROGRAM_NAME = gol.exe
 CC = gcc
 LINK = gcc
-CFLAGS = -c -std=c99 -Wall
-LINK_FLAGS = -o $(PROGRAM_NAME)
+CFLAGS = -c -Os -std=c99 -Wall
+LINK_FLAGS = -Xlinker -Map=output.map -o $(PROGRAM_NAME)
 
 OBJS = \
 	arguments.o \
