@@ -14,11 +14,19 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <assert.h>
 
 
 // Number of generates to run the program for
 //
 #define GENERATIONS_TO_RUN 4
+
+// Living and dead-cell representations
+// -- This are also the expected file symbols
+//
+static const uint8_t DEAD_CELL_CHAR = '.';
+static const uint8_t LIVE_CELL_CHAR = 'X';
+
 
 // NOTE: Having trouble with my build system
 // The time.h header in mingwin does not seem to be right.
@@ -85,16 +93,17 @@ int main(int argc, char* argv[])
     srand(time(NULL));
 
     // Initialze with starting pattern for first generation
+    // This should never fail to return an initial pattern
     //
     initialPattern = Arguments_GetInitialPatternArgument();
-//    CASSERT(initialPattern != NULL)
+    assert(initialPattern != NULL);
     if (CaseInsentitiveStringCompare(initialPattern, ARGUMENT_PATTERN_RANDOM))
     {
         Grid_InitializeAsRandom();
     }
     else
     {
-        result = Grid_InitializeFromFile(initialPattern);
+        result = Grid_InitializeFromFile(initialPattern, DEAD_CELL_CHAR, LIVE_CELL_CHAR);
         if (result != NO_ERROR)
         {
             goto EXIT;
@@ -104,7 +113,7 @@ int main(int argc, char* argv[])
     // Display 'file name' and grid for first generation
     //
     fprintf(stdout, "%s\n", initialPattern);
-    Grid_Write(stdout);
+    Grid_Write(stdout, DEAD_CELL_CHAR, LIVE_CELL_CHAR);
     printf("\n");
 
     // Generate and display the rest of the generations
@@ -112,7 +121,7 @@ int main(int argc, char* argv[])
     while (Grid_GetGenerationCount() < GENERATIONS_TO_RUN)
     {
         Grid_AdvanceToNextGeneration();
-        Grid_Write(stdout);
+        Grid_Write(stdout, DEAD_CELL_CHAR, LIVE_CELL_CHAR);
         printf("\n");
     }
 

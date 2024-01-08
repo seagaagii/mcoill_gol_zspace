@@ -3,6 +3,7 @@
 // Very simple error system, mostly for readability.
 //
 #include "error.h"
+#include <assert.h>
 
 
 //
@@ -23,5 +24,9 @@ const char* Error_GetString(
         case ERROR_FILE_OPEN_FAILURE: return "Unable to open requested initial file";
         case ERROR_INVALID_FILE_FORMAT: return "Initial file is incorrect format";
     }
+
+    // New error was added, but not in this table
+    //
+    assert(0);
     return "Unknown Error Code";
 }
